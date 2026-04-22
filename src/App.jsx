@@ -9,7 +9,7 @@ import {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const fmt    = n => '$' + Math.round(n).toLocaleString();
 const pct    = n => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
-const CURRENT_YEAR = new Date().getFullYear(); // 2026
+const CURRENT_YEAR = new Date().getFullYear(); 
 const HISTORICAL_YEARS = Array.from({ length: CURRENT_YEAR - 1993 + 1 }, (_, i) => 1993 + i);
 const FUTURE_YEARS = Array.from({ length: 31 }, (_, i) => CURRENT_YEAR + 1 + i);
 const ALL_YEARS = [...HISTORICAL_YEARS, ...FUTURE_YEARS];
@@ -35,20 +35,21 @@ async function fetchMonthlyPrices(ticker, startYear, endYear) {
   const data = await res.json();
 
   const result = data?.chart?.result?.[0];
-  if (!result) throw new Error(`No data found for "${ticker}". Check the ticker symbol.`);
+  if (!result) throw new Error(`No data found for "${ticker}".`);
 
   const timestamps = result.timestamps || result.timestamp;
   const closes     = result.indicators?.adjclose?.[0]?.adjclose
                   || result.indicators?.quote?.[0]?.close;
-  if (!timestamps || !closes) throw new Error(`Incomplete data for "${ticker}".`);
-
+  
   const monthly = {};
-  timestamps.forEach((ts, i) => {
-    if (closes[i] == null) return;
-    const d   = new Date(ts * 1000);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    monthly[key] = closes[i];
-  });
+  if (timestamps && closes) {
+    timestamps.forEach((ts, i) => {
+      if (closes[i] == null) return;
+      const d   = new Date(ts * 1000);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthly[key] = closes[i];
+    });
+  }
 
   return monthly;
 }
@@ -156,12 +157,14 @@ export default function DCACalculator() {
     try {
       const priceMap = await fetchMonthlyPrices(sym, startYear, endYear);
       const data     = simulate(priceMap, +startYear, +endYear, mon, init, sym);
+      
+      const last = data[data.length - 1];
       setSummary({
         label: `${sym} · ${startYear} → ${endYear}`,
-        final: data[data.length - 1].portfolioVal,
-        invested: data[data.length - 1].invested,
-        gain: data[data.length - 1].portfolioVal - data[data.length - 1].invested,
-        roi: ((data[data.length - 1].portfolioVal - data[data.length - 1].invested) / data[data.length - 1].invested) * 100,
+        final: last.portfolioVal,
+        invested: last.invested,
+        gain: last.portfolioVal - last.invested,
+        roi: ((last.portfolioVal - last.invested) / last.invested) * 100,
       });
       setRows(data);
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -207,9 +210,22 @@ export default function DCACalculator() {
     statLabel: { fontSize: 11, color: '#6b7a87', letterSpacing: '0.05em' },
     chartWrap: { height: 260, marginBottom: 32 },
     tableTitle: { fontFamily: 'monospace', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#6b7a87', marginBottom: 10 },
-    tableWrap: { border: '1px solid #1f2a33', borderRadius: 12, overflow: 'hidden', maxHeight: 280, overflowY: 'auto' },
-    table: { width: '100%', borderCollapse: 'collapse', fontFamily: 'monospace', fontSize: 13 },
-    th: { background: '#181e23', color: '#6b7a87', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '11px 16px', textAlign: 'left', position: 'sticky', top: 0 },
+    tableWrap: { 
+      border: '1px solid #1f2a33', 
+      borderRadius: 12, 
+      overflowY: 'auto', 
+      overflowX: 'auto', // Horizontal scroll enabled
+      maxHeight: 280,
+      WebkitOverflowScrolling: 'touch' // Smooth scroll for iOS
+    },
+    table: { 
+      width: '100%', 
+      minWidth: '600px', // Forces scrollability on mobile
+      borderCollapse: 'collapse', 
+      fontFamily: 'monospace', 
+      fontSize: 13 
+    },
+    th: { background: '#181e23', color: '#6b7a87', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '11px 16px', textAlign: 'left', position: 'sticky', top: 0, zIndex: 1 },
     td: { padding: '10px 16px', borderTop: '1px solid #1f2a33', color: '#e8e4dc' },
     affiliateBar: { marginTop: 28, background: 'rgba(238,133,17,0.07)', border: '1px solid rgba(238,133,17,0.2)', borderRadius: 14, padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' },
     affiliateBtn: { padding: '10px 20px', background: 'transparent', border: '1px solid #EE8511', borderRadius: 8, color: '#EE8511', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" },
@@ -301,7 +317,7 @@ export default function DCACalculator() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <p style={s.tableTitle}>Year-by-Year Breakdown</p>
+              <p style={s.tableTitle}>Year-by-Year Breakdown (Swipe to scroll)</p>
               <div style={s.tableWrap}>
                 <table style={s.table}>
                   <thead>

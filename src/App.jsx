@@ -16,7 +16,6 @@ const ALL_YEARS = [...HISTORICAL_YEARS, ...FUTURE_YEARS];
 
 const QUICK_TICKERS = ['SPY', 'QQQ', 'VTI', 'AAPL', 'MSFT', 'NVDA', 'BRK-B', 'VGT', 'ARKK'];
 
-// Terminal growth rates for forecasting
 const getTerminalRate = (ticker) => {
   const t = ticker.toUpperCase();
   if (['QQQ', 'NVDA', 'AAPL', 'MSFT', 'VGT', 'ARKK'].includes(t)) return 0.09;
@@ -24,7 +23,6 @@ const getTerminalRate = (ticker) => {
   return 0.05;
 };
 
-// ── Data fetching ─────────────────────────────────────────────────────────────
 async function fetchMonthlyPrices(ticker, startYear, endYear) {
   const lastHistoryYear = Math.min(endYear, CURRENT_YEAR);
   const from = Math.floor(new Date(`${startYear}-01-01`).getTime() / 1000);
@@ -55,7 +53,6 @@ async function fetchMonthlyPrices(ticker, startYear, endYear) {
   return monthly;
 }
 
-// ── DCA simulation ─────────────────────────────────────────────────────────────
 function simulate(monthly, startYear, endYear, monthlyDeposit, initialInvestment, ticker) {
   let shares   = 0;
   let invested = initialInvestment;
@@ -86,7 +83,6 @@ function simulate(monthly, startYear, endYear, monthlyDeposit, initialInvestment
       portfolioVal = yearPrice ? shares * yearPrice : (prevValue || 0);
       annRet = prevValue != null && prevValue !== 0 ? ((portfolioVal / prevValue) - 1) * 100 : null;
     } else {
-      // Forecasting Logic
       portfolioVal = (prevValue * (1 + terminalRate)) + (monthlyDeposit * 12 * (1 + terminalRate / 2));
       invested += (monthlyDeposit * 12);
       annRet = terminalRate * 100;
@@ -107,7 +103,6 @@ function simulate(monthly, startYear, endYear, monthlyDeposit, initialInvestment
   return rows;
 }
 
-// ── Custom tooltip for chart ──────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -131,7 +126,6 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
 export default function DCACalculator() {
   const [ticker,    setTicker]    = useState('');
   const [startYear, setStartYear] = useState(2010);
@@ -162,24 +156,17 @@ export default function DCACalculator() {
     try {
       const priceMap = await fetchMonthlyPrices(sym, startYear, endYear);
       const data     = simulate(priceMap, +startYear, +endYear, mon, init, sym);
-      if (!data.length) throw new Error('No data found for that date range.');
-
-      const last      = data[data.length - 1];
-      const totalGain = last.portfolioVal - last.invested;
-      const roi       = (totalGain / last.invested) * 100;
-
       setSummary({
         label: `${sym} · ${startYear} → ${endYear}`,
-        final: last.portfolioVal,
-        invested: last.invested,
-        gain: totalGain,
-        roi,
+        final: data[data.length - 1].portfolioVal,
+        invested: data[data.length - 1].invested,
+        gain: data[data.length - 1].portfolioVal - data[data.length - 1].invested,
+        roi: ((data[data.length - 1].portfolioVal - data[data.length - 1].invested) / data[data.length - 1].invested) * 100,
       });
       setRows(data);
-
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (e) {
-      setError(e.message || 'Something went wrong. Please try again.');
+      setError(e.message || 'Something went wrong.');
     }
     setLoading(false);
   }
@@ -190,7 +177,6 @@ export default function DCACalculator() {
     'Total Invested': Math.round(r.invested),
   }));
 
-  // ── Styles (Preserved exactly) ──────────────────────────────────────────────
   const s = {
     page: { minHeight: '100vh', background: '#0a0d0f', color: '#e8e4dc', fontFamily: "'DM Sans', sans-serif", padding: '0 24px 80px' },
     container: { maxWidth: 900, margin: '0 auto' },
@@ -200,7 +186,6 @@ export default function DCACalculator() {
     yellow: { color: '#EE8511', fontStyle: 'italic' },
     subtitle: { color: '#6b7a87', fontSize: 16, fontWeight: 300 },
     card: { background: '#111518', border: '1px solid #1f2a33', borderRadius: 20, padding: '36px 40px', marginBottom: 32 },
-    grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
     fullCol: { gridColumn: '1 / -1' },
     label: { display: 'block', fontFamily: 'monospace', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#6b7a87', marginBottom: 8 },
     inputWrap: { position: 'relative' },
@@ -216,7 +201,7 @@ export default function DCACalculator() {
     tickerLabel: { fontFamily: 'monospace', fontSize: 11, letterSpacing: '0.2em', color: '#EE8511', textTransform: 'uppercase', marginBottom: 12 },
     bigNum: { fontFamily: "'Playfair Display', serif", fontSize: 'clamp(44px, 8vw, 76px)', fontWeight: 700, color: '#2ecc71', lineHeight: 1, letterSpacing: '-0.02em' },
     bigLabel: { color: '#6b7a87', fontSize: 14, marginTop: 8 },
-    statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 32 },
+    statsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 14, marginBottom: 32 },
     statBox: { background: '#181e23', border: '1px solid #1f2a33', borderRadius: 12, padding: 20, textAlign: 'center' },
     statVal: { fontFamily: 'monospace', fontSize: 22, fontWeight: 500, marginBottom: 4 },
     statLabel: { fontSize: 11, color: '#6b7a87', letterSpacing: '0.05em' },
@@ -235,6 +220,18 @@ export default function DCACalculator() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap');
+        
+        .grid-container {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 20px;
+        }
+
+        @media (max-width: 600px) {
+          .grid-container {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
 
       <div style={s.page}>
@@ -246,8 +243,8 @@ export default function DCACalculator() {
           </header>
 
           <div style={s.card}>
-            <div style={s.grid2}>
-              <div style={{ ...s.fullCol }}>
+            <div className="grid-container">
+              <div style={s.fullCol}>
                 <label style={s.label}>Stock / ETF Ticker</label>
                 <input style={s.input} type="text" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} placeholder="e.g. SPY, QQQ, AAPL" />
                 <div style={s.chips}>
@@ -304,7 +301,6 @@ export default function DCACalculator() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-
               <p style={s.tableTitle}>Year-by-Year Breakdown</p>
               <div style={s.tableWrap}>
                 <table style={s.table}>
@@ -330,15 +326,8 @@ export default function DCACalculator() {
                   </tbody>
                 </table>
               </div>
-
-              <div style={s.affiliateBar}>
-                <p style={{ fontSize: 14, color: '#6b7a87', margin: 0 }}>Ready to start? <strong style={{ color: '#EE8511' }}>Open a commission-free account</strong> and begin your DCA journey today.</p>
-                <button style={s.affiliateBtn} onClick={() => window.open('https://robinhood.com', '_blank')}>Start Investing Free →</button>
-              </div>
             </div>
           )}
-
-          <p style={s.disclaimer}>Past performance does not guarantee future results. This tool uses historical price data and standardized growth projections for educational purposes only.</p>
         </div>
       </div>
     </>
